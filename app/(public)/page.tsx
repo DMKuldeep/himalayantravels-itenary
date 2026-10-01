@@ -681,7 +681,7 @@ function PlannerForm({
           label="Days"
           value={form.days || promptDays || suggestedDays}
           onChange={(value) => change("days", value)}
-          options={["3", "4", "5", "6", "7", "8", "10", "12", "15"]}
+          options={Array.from({ length: 30 }, (_, index) => String(index + 1))}
         />
         <p className="-mt-2 text-xs text-slate-500 sm:col-span-2 lg:col-span-4">
           AI Suggested: {suggestedDays} Days / {Math.max(0, Number(suggestedDays) - 1)} Nights
