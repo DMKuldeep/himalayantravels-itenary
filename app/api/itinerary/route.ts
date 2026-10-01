@@ -1,4 +1,8 @@
 import { NextResponse } from 'next/server'
+import { extractTripRequest, suggestedDuration } from '@/lib/trip-request'
+import { companyContact } from '@/lib/company'
+
+export const dynamic = 'force-dynamic'
 
 type ItineraryRequest = {
   origin: string
@@ -275,7 +279,7 @@ function getNainitalMussooriePlan(input: ItineraryRequest, tripDates: { dates: s
       input.requirements ? `Special requirement noted: ${input.requirements}` : 'No special requirement recorded.',
     ],
     packing: ['Warm clothing', 'Comfortable walking shoes', 'Sunglasses and sunscreen', 'Power bank and medical essentials'],
-    emergency: ['The Himalayan Travels', 'Phone / WhatsApp: +91 85059 83792', 'GST: 02GCYPK3256A1ZN'],
+    emergency: [companyContact.name, `Phone / WhatsApp: ${companyContact.phone}`, `GST: ${companyContact.gst}`],
   }
 }
 
@@ -433,7 +437,7 @@ function getNainitalCircuitPlan(input: ItineraryRequest, tripDates: { dates: str
     tips: ['Reserve extra time for hill roads and weekend traffic.', 'Check Kainchi Dham access and local advisories before setting out.', 'Visit viewpoints in clear weather and avoid unfamiliar trails after dark.'],
     importantNotes: ['Suggested hotels are not confirmed bookings.', 'Distances and drive times are approximate and vary with traffic, weather and road conditions.', input.requirements ? `Special requirement: ${input.requirements}` : 'No special requirements provided.'],
     packing: ['Comfortable walking shoes', 'Weather-appropriate layers', 'Sun protection and personal medication'],
-    emergency: ['The Himalayan Travels', 'Phone / WhatsApp: +91 98765 43210', 'GST: 02GCYPK3256A1ZN'],
+    emergency: [companyContact.name, `Phone / WhatsApp: ${companyContact.phone}`, `GST: ${companyContact.gst}`],
   }
 }
 
@@ -462,59 +466,70 @@ function buildDestinationSpecificPlan(input: ItineraryRequest, tripDates: { date
     rishikesh: ['Laxman Jhula', 'Triveni Ghat', 'Ram Jhula', 'Neelkanth Mahadev', 'Byasi', 'Rajaji National Park'],
   }
 
-  const basePlaces = routeStops[defaultCity.toLowerCase()] || routeStops[defaultCity] || [input.destination, 'Local market', 'Scenic viewpoint']
-  const places = [...new Set(basePlaces)]
+  const curatedStops = routeStops[destinationLower] || routeStops[defaultCity.toLowerCase()] || routeStops[defaultCity]
+  const places = curatedStops || [
+    'Central district',
+    'Heritage area',
+    'Local market and food district',
+    'Visitor landmarks',
+  ]
 
   const dayPlan = Array.from({ length: tripDates.days }, (_, index) => {
-    const place = places[index % places.length]
-    const nextPlace = places[(index + 1) % places.length]
-    const titleMap = [
-      `Arrival in ${defaultCity}`,
-      `${defaultCity} Highlights`,
-      `${places[2]} and ${places[3]}`,
-      `${places[4]} excursion`,
-      `${defaultCity} leisure & departure`,
-    ]
+    const isArrival = index === 0
+    const isDeparture = index === tripDates.days - 1 && tripDates.days > 1
+    const placeIndex = Math.max(0, index - 1) % places.length
+    const place = places[placeIndex]
+    const nextPlace = places[(placeIndex + 1) % places.length]
+    const title = isArrival
+      ? `Travel from ${origin} to ${defaultCity}`
+      : isDeparture
+        ? `Return from ${defaultCity} to ${origin}`
+        : `${defaultCity}: ${place}`
+    const summary = isArrival
+      ? `Travel from ${origin} to ${defaultCity}. Check in, rest after the transfer, and keep the first evening near the accommodation.`
+      : isDeparture
+        ? `Check out from ${defaultCity} and return to ${origin}. Keep meal and rest breaks flexible for the route and actual transport schedule.`
+        : curatedStops
+          ? `Explore ${place} and nearby sights in ${defaultCity}; keep time for a regional meal and verify opening hours before setting out.`
+          : `Use this day to explore ${place} in ${defaultCity}. Ask the local visitor centre or accommodation to confirm named attractions, current access and suitable regional food options before travel.`
 
-    const title = titleMap[index % titleMap.length] || `${defaultCity} day ${index + 1}`
-    const location = index === 0 ? defaultCity : defaultCity
-    const summary = index === 0
-      ? `Reach ${defaultCity} and settle in before exploring the city’s signature lakefront or market lanes in the evening.`
-      : index === tripDates.days - 1
-        ? `Use the final day for a gentle ${defaultCity} experience before a comfortable return journey to ${origin}.`
-        : `Spend the day focused on ${place} and nearby experiences, keeping the route practical and the timing relaxed.`
+    const morning = isArrival
+      ? [`Depart from ${origin} using the selected transport`, 'Allow for a meal/rest stop according to the route']
+      : isDeparture
+        ? [`Breakfast and check out from ${defaultCity}`, `Begin the return journey to ${origin} according to the confirmed transport schedule`]
+        : [`Breakfast in ${defaultCity}`, curatedStops ? `Visit ${place} and nearby sights` : `Explore the ${place} area; confirm specific sites locally`]
 
-    const morning = index === 0
-      ? [`07:00 AM – Depart from ${origin}`, `09:30 AM – Breakfast stop on the route`]
-      : [`08:00 AM – Breakfast in ${defaultCity}`, `09:00 AM – Start for ${place}`]
+    const afternoon = isArrival
+      ? [`Arrive in ${defaultCity} and check in`, 'Lunch and rest after the journey']
+      : isDeparture
+        ? ['Take a meal and rest break en route', `Continue toward ${origin}`]
+        : [`Lunch in ${defaultCity}, with regional dishes selected to suit dietary needs`, curatedStops ? `Continue to ${nextPlace} if travel time and opening hours allow` : `Choose a nearby attraction after confirming it is open and accessible`]
 
-    const afternoon = index === 0
-      ? [`01:00 PM – Arrival & hotel check-in`, `02:30 PM – Lunch and rest`]
-      : [`12:00 PM – Lunch near ${place}`, `02:00 PM – Continue with ${nextPlace} or a nearby attraction`]
+    const evening = isArrival
+      ? [`Take a short walk near the accommodation in ${defaultCity}`, `Dinner in ${defaultCity}`]
+      : isDeparture
+        ? [`Arrive in ${origin}; trip concludes`, 'Arrival time depends on traffic and the selected transport']
+        : [`Return to the accommodation before evening`, `Dinner featuring local cuisine in ${defaultCity}`]
 
-    const evening = index === 0
-      ? [`04:30 PM – Walk around ${places[0]}`, `07:00 PM – Dinner and overnight stay`]
-      : [`05:00 PM – Explore ${place} surroundings`, `07:00 PM – Dinner in ${defaultCity}`]
-
-    const night = index === tripDates.days - 1
-      ? ['Check-out or final rest before departure', 'Trip concludes for the day']
-      : ['Return to hotel', `Overnight stay in ${defaultCity}`]
+    const night = isDeparture
+      ? ['Trip concludes; no overnight stay included']
+      : [`Overnight stay in ${defaultCity}`]
 
     return {
       day: index + 1,
       date: tripDates.dates[index] || `Day ${index + 1}`,
       title,
-      location,
+      location: defaultCity,
       summary,
       morning,
       afternoon,
       evening,
       night,
-      distance: index === 0 ? `Approx. ${input.destination.includes('Goa') ? '400-500' : '200-300'} km` : `${place} local circuit`,
-      travelTime: index === 0 ? '7–9 hours' : '3–5 hours',
+      distance: isArrival || isDeparture ? 'Confirm route distance for selected origin and transport' : `${place} local area; confirm route locally`,
+      travelTime: isArrival || isDeparture ? 'Confirm against selected transport and live route conditions' : 'Allow flexible time for local travel and visits',
       transport: input.transport || 'Private AC cab',
-      departure: index === 0 ? '07:00 AM' : '09:00 AM',
-      meals: [index === 0 ? 'Breakfast stop en route' : 'Breakfast at hotel', 'Lunch local', 'Dinner in town'],
+      departure: isArrival || isDeparture ? 'Confirm with selected transport' : '08:30 AM',
+      meals: [isArrival || isDeparture ? 'Meals during the journey as scheduled' : 'Breakfast at accommodation', 'Regional lunch in town', 'Dinner in town'],
       hotel: {
         city: defaultCity,
         category: input.hotelCategory || 'Comfort',
@@ -542,7 +557,7 @@ function buildDestinationSpecificPlan(input: ItineraryRequest, tripDates: { date
     route: [origin, defaultCity, origin],
     days: dayPlan,
     hotels: [{ city: defaultCity, nights: tripDates.nights, options: ['Suggested Hotel • Central location', 'Suggested Hotel • Comfort property', 'Suggested Hotel • Premium stay'] }],
-    transportPlan: [{ route: `${origin} → ${defaultCity}`, mode: input.transport || 'Private AC cab', distance: 'Approx. route distance', duration: 'Approx. travel time', cost: 'Estimated on request' }],
+    transportPlan: [{ route: `${origin} → ${defaultCity}`, mode: input.transport || 'Private AC cab', distance: 'Confirm for selected route', duration: 'Confirm against live route and transport', cost: 'Estimated on request' }],
     cost: {
       hotels: `Approx. ₹${(input.adults * tripDates.nights * 3000 + input.children * 1000).toLocaleString('en-IN')}`,
       transport: `Approx. ₹${(input.adults * tripDates.days * 1500).toLocaleString('en-IN')}`,
@@ -562,7 +577,7 @@ function buildDestinationSpecificPlan(input: ItineraryRequest, tripDates: { date
     tips: ['Leave buffer time around transfers.', 'Carry weather-appropriate layers.', 'Book key hotel nights early.'],
     importantNotes: ['Hotels shown are suggested options only.', 'Travel times are approximate.', input.requirements ? `Special requirement: ${input.requirements}` : 'No special requirement noted.'],
     packing: ['Comfortable shoes', 'Sunglasses', 'Water bottle', 'Warm layer'],
-    emergency: ['The Himalayan Travels', 'Phone / WhatsApp: +91 85059 83792', 'GST: 02GCYPK3256A1ZN'],
+    emergency: [companyContact.name, `Phone / WhatsApp: ${companyContact.phone}`, `GST: ${companyContact.gst}`],
   }
 }
 
@@ -585,9 +600,6 @@ function fallbackItinerary(input: ItineraryRequest): StructuredItinerary {
   const destinationLower = normalizedInput.destination.toLowerCase()
   const plan = buildDestinationSpecificPlan(normalizedInput, tripDates)
   if (validatePlan(plan)) return plan
-
-  const fallbackPlan = getNainitalMussooriePlan(normalizedInput, tripDates)
-  if (validatePlan(fallbackPlan)) return fallbackPlan
 
   return {
     trip: {
@@ -624,7 +636,7 @@ function fallbackItinerary(input: ItineraryRequest): StructuredItinerary {
       optional: ['Free time for shopping or rest'],
     })),
     hotels: [{ city: normalizedInput.destination, nights: tripDates.nights, options: ['Suggested Hotel • Central location', 'Suggested Hotel • Comfort property', 'Suggested Hotel • Premium stay'] }],
-    transportPlan: [{ route: `${normalizedInput.origin || 'Delhi'} → ${normalizedInput.destination}`, mode: normalizedInput.transport || 'Private AC cab', distance: 'Approx. route distance', duration: 'Approx. travel time', cost: 'Estimated on request' }],
+    transportPlan: [{ route: `${normalizedInput.origin || 'Delhi'} → ${normalizedInput.destination}`, mode: normalizedInput.transport || 'Private AC cab', distance: 'Confirm for selected route', duration: 'Confirm against live route and transport', cost: 'Estimated on request' }],
     cost: {
       hotels: 'Estimated based on category',
       transport: 'Estimated based on route and vehicle',
@@ -644,146 +656,30 @@ function fallbackItinerary(input: ItineraryRequest): StructuredItinerary {
     tips: ['Plan early starts for scenic drives.', 'Keep buffer time around transfers.'],
     importantNotes: ['Hotels are suggestions only.', 'Travel times are approximate.'],
     packing: ['Weather-appropriate layers', 'Comfortable shoes', 'Water bottle'],
-    emergency: ['The Himalayan Travels', 'Phone / WhatsApp: +91 85059 83792', 'GST: 02GCYPK3256A1ZN'],
+    emergency: [companyContact.name, `Phone / WhatsApp: ${companyContact.phone}`, `GST: ${companyContact.gst}`],
   }
-}
-
-function normalizeDestinationText(value: string) {
-  return value
-    .replace(/\s+/g, ' ')
-    .replace(/\bki\b|\bse\b|\bfrom\b|\bto\b|\btrip\b|\bitinerary\b/gi, ' ')
-    .replace(/\s*[,\-&+]+\s*/g, ' + ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function suggestDurationFromDestination(destination: string) {
-  const normalized = destination.toLowerCase()
-  if (normalized.includes('nainital') && normalized.includes('mussoorie')) return 5
-  if (normalized.includes('nainital')) return 3
-  if (normalized.includes('mussoorie')) return 4
-  if (normalized.includes('goa')) return 4
-  if (normalized.includes('manali')) return 4
-  if (normalized.includes('kashmir') || normalized.includes('leh') || normalized.includes('shimla')) return 5
-  return 4
-}
-
-function parseSmartTripPrompt(rawPrompt: string) {
-  const prompt = (rawPrompt || '').trim()
-  if (!prompt) return {}
-
-  const lower = prompt.toLowerCase()
-  const monthMap: Record<string, string> = {
-    jan: '01', january: '01', feb: '02', february: '02', mar: '03', march: '03', apr: '04', april: '04', may: '05', jun: '06', june: '06', jul: '07', july: '07', aug: '08', august: '08', sep: '09', sept: '09', september: '09', oct: '10', october: '10', nov: '11', november: '11', dec: '12', december: '12',
-  }
-
-  const toIsoDate = (day: string, monthName: string, year?: string) => {
-    const month = monthMap[monthName.toLowerCase()]
-    if (!month) return ''
-    const yearValue = year || new Date().getFullYear()
-    return `${Number(yearValue)}-${month}-${String(day).padStart(2, '0')}`
-  }
-
-  const dateMatches = [...prompt.matchAll(/(\d{1,2})(?:st|nd|rd|th)?\s*(?:of\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december)(?:\s+(\d{4}))?/gi)]
-
-  const dates = dateMatches
-    .map((match) => toIsoDate(match[1], match[2], match[3]))
-    .filter(Boolean)
-
-  const daysMatch = prompt.match(/(\d+)\s*(?:days?|day)/i)
-  const tripDays = daysMatch ? Math.max(3, Math.min(Number(daysMatch[1]), 15)) : undefined
-
-  const placeNames = [
-    'naukuchiatal', 'kainchi dham', 'nainital', 'mussoorie', 'bhimtal', 'mukteshwar', 'ranikhet',
-    'dalhousie', 'rishikesh', 'haridwar', 'srinagar', 'kashmir', 'manali', 'shimla', 'jaipur',
-    'kerala', 'goa', 'leh', 'delhi', 'mumbai', 'agra', 'sattal', 'almora', 'bhowali',
-  ]
-  const canonicalNames: Record<string, string> = {
-    naukuchiatal: 'Naukuchiatal', 'kainchi dham': 'Kainchi Dham', nainital: 'Nainital', mussoorie: 'Mussoorie',
-    bhimtal: 'Bhimtal', mukteshwar: 'Mukteshwar', ranikhet: 'Ranikhet', dalhousie: 'Dalhousie',
-    rishikesh: 'Rishikesh', haridwar: 'Haridwar', srinagar: 'Srinagar', kashmir: 'Kashmir',
-    manali: 'Manali', shimla: 'Shimla', jaipur: 'Jaipur', kerala: 'Kerala', goa: 'Goa', leh: 'Leh',
-    delhi: 'Delhi', mumbai: 'Mumbai', agra: 'Agra', sattal: 'Sattal', almora: 'Almora', bhowali: 'Bhowali',
-  }
-  const placeMatches = placeNames.flatMap((name) => {
-    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    return [...prompt.matchAll(new RegExp(`\\b${escaped}\\b`, 'gi'))].map((match) => ({
-      name: canonicalNames[name],
-      index: match.index || 0,
-    }))
-  }).sort((left, right) => left.index - right.index)
-
-  const hindiOrigin = prompt.match(/^\s*([A-Za-z][A-Za-z\s.-]*?)\s+se\s+/i)?.[1]?.trim() || ''
-  const englishOrigin = prompt.match(/\bfrom\s+([A-Za-z][A-Za-z\s.-]*?)(?=\s+to\b|\s+for\b|$)/i)?.[1]?.trim() || ''
-  const origin = hindiOrigin || englishOrigin || ''
-  const distinctPlaces = [...new Map(placeMatches.map((place) => [place.name.toLowerCase(), place.name])).values()]
-  const destinationPlaces = distinctPlaces.filter((place) => place.toLowerCase() !== origin.toLowerCase())
-  let destination = destinationPlaces.join(' + ')
-
-  if (!destination) {
-    const stripped = prompt
-      .replace(/\d{1,2}(?:st|nd|rd|th)?\s*(?:of\s+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december)(?:\s+\d{4})?/gi, ' ')
-      .replace(/\b\d+\s*days?\b/gi, ' ')
-      .replace(/\b(?:from|to|se|aur|and|for|couple|family|friends|group|trip|itinerary|travel|tour|vacation|destination|origin)\b/gi, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-    destination = normalizeDestinationText(stripped.replace(new RegExp(`^${origin}\\s*`, 'i'), ''))
-  }
-
-  let travellerType = 'Couple'
-  if (/solo|single/i.test(prompt)) travellerType = 'Solo'
-  if (/family|with family|famil/i.test(prompt)) travellerType = 'Family'
-  if (/friends|group/i.test(prompt)) travellerType = 'Friends'
-  if (/couple|honeymoon|love/i.test(prompt)) travellerType = 'Couple'
-
-  let adults = 2
-  if (/solo|single/i.test(prompt)) adults = 1
-  if (/family|group|friends/i.test(prompt)) adults = 2
-  if (/\b(\d+)\s+people\b|\b(\d+)\s+travellers?\b/i.test(prompt)) {
-    const peopleMatch = prompt.match(/\b(\d+)\s+people\b|\b(\d+)\s+travellers?\b/i)
-    if (peopleMatch) adults = Math.max(1, Number(peopleMatch[1] || peopleMatch[2]))
-  }
-
-  const result: Record<string, string | number> = {
-    origin: origin || 'Delhi',
-    destination: destination || 'Nainital',
-    days: String(tripDays || suggestDurationFromDestination(destination || 'Nainital')),
-    adults: String(adults),
-    children: '0',
-    travellerType,
-  }
-
-  if (dates.length >= 2) {
-    result.startDate = dates[0]
-    result.endDate = dates[1]
-    result.days = String(Math.max(1, Math.round((new Date(dates[1]).getTime() - new Date(dates[0]).getTime()) / 86400000) + 1))
-  }
-
-  if (dates.length === 1) {
-    result.startDate = dates[0]
-  }
-
-  if (!tripDays) {
-    result.days = String(suggestDurationFromDestination(String(result.destination || 'Nainital')))
-  }
-
-  return result
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const parsedPrompt = parseSmartTripPrompt(clean(body.tripPrompt) || clean(body.prompt) || clean(body.rawText) || `${clean(body.origin)} ${clean(body.destination)}`)
+    const userQuery = clean(body.userQuery) || clean(body.tripPrompt) || clean(body.prompt) || clean(body.rawText)
+    const extracted = extractTripRequest(userQuery)
+    const destination = extracted.destination || clean(body.destination)
+
+    if (!destination) {
+      return NextResponse.json({ error: 'Please enter a destination or describe the trip in your prompt.' }, { status: 400 })
+    }
 
     const input: ItineraryRequest = {
-      origin: clean(body.origin) || clean(parsedPrompt.origin, 'Delhi'),
-      destination: clean(body.destination) || clean(parsedPrompt.destination, 'Nainital'),
-      startDate: clean(body.startDate) || clean(parsedPrompt.startDate),
-      endDate: clean(body.endDate) || clean(parsedPrompt.endDate),
-      days: Math.min(Math.max(Number(body.days) || Number(parsedPrompt.days) || 5, 3), 15),
-      adults: Math.max(Number(body.adults) || Number(parsedPrompt.adults) || 2, 1),
-      children: Math.max(Number(body.children) || Number(parsedPrompt.children) || 0, 0),
-      travellerType: clean(body.travellerType, clean(parsedPrompt.travellerType, 'Couple')),
+      origin: extracted.origin || clean(body.origin) || 'Delhi',
+      destination,
+      startDate: extracted.startDate || clean(body.startDate),
+      endDate: extracted.endDate || clean(body.endDate),
+      days: Math.min(Math.max(extracted.days || Number(body.days) || suggestedDuration(destination), 1), 30),
+      adults: Math.max(Number(body.adults) || 2, 1),
+      children: Math.max(Number(body.children) || 0, 0),
+      travellerType: clean(body.travellerType, 'Couple'),
       budget: clean(body.budget),
       hotelCategory: clean(body.hotelCategory, 'Comfort'),
       transport: clean(body.transport),
@@ -792,64 +688,125 @@ export async function POST(request: Request) {
       requirements: clean(body.requirements),
     }
 
-    if (!input.origin || !input.destination) {
-      return NextResponse.json({ error: 'Please enter both a starting city and destination.' }, { status: 400 })
-    }
-
     const tripDates = calculateTripDates(input)
-    if (input.startDate && input.endDate) {
-      input.days = tripDates.days
-    }
+    input.days = tripDates.days
 
+    const geminiKey = process.env.GEMINI_API_KEY
     const openRouterKey = process.env.OPENROUTER_API_KEY
     const openAiKey = process.env.OPENAI_API_KEY
-    const apiKey = openRouterKey || openAiKey
+    const apiKey = geminiKey || openRouterKey || openAiKey
     const fallbackResult = fallbackItinerary(input)
 
-    if (input.destination.toLowerCase().includes('nainital')) {
-      return NextResponse.json(fallbackResult)
-    }
-
     if (!apiKey) {
-      return NextResponse.json(fallbackResult)
+      return NextResponse.json(fallbackResult, { headers: { 'Cache-Control': 'no-store' } })
     }
 
-    const schemaPrompt = `Return only valid JSON matching this exact structure: {"trip":{"origin":"","destination":"","startDate":"","endDate":"","duration":"","nights":0,"adults":0,"children":0,"travellerType":"","budget":"","hotelCategory":"","transport":"","meals":"","tripType":"","requirements":""},"title":"","summary":"","route":[],"days":[{"day":1,"date":"","title":"","location":"","summary":"","morning":[],"afternoon":[],"evening":[],"night":[],"distance":"","travelTime":"","transport":"","departure":"","meals":[],"hotel":{"city":"","category":"","name":"Suggested Hotel","options":[],"mealPlan":""},"activities":[],"optional":[]}],"hotels":[{"city":"","nights":0,"options":[]}],"transportPlan":[{"route":"","mode":"","distance":"","duration":"","cost":""}],"cost":{"hotels":"","transport":"","activities":"","meals":"","miscellaneous":"","total":"","perPerson":""},"packageOptions":[{"name":"BUDGET","details":""},{"name":"COMFORT","details":""},{"name":"PREMIUM","details":""}],"inclusions":[],"exclusions":[],"tips":[],"importantNotes":[],"packing":[],"emergency":[]}. The final result must behave like a professional travel agency planner. Dates matter. If startDate and endDate are provided, use them as the source of truth and calculate the correct number of days before generating the itinerary. Do not invent wrong dates. Use day headings that respect the travel dates. Every day must have a realistic overnight city, place list and route logic. Keep the same trip structure across categories. Use approximate language when prices are unconfirmed.`
+    const schemaPrompt = `Return only valid JSON matching this exact structure: {"trip":{"origin":"","destination":"","startDate":"","endDate":"","duration":"","nights":0,"adults":0,"children":0,"travellerType":"","budget":"","hotelCategory":"","transport":"","meals":"","tripType":"","requirements":""},"title":"","summary":"","route":[],"days":[{"day":1,"date":"","title":"","location":"","summary":"","morning":[],"afternoon":[],"evening":[],"night":[],"distance":"","travelTime":"","transport":"","departure":"","meals":[],"hotel":{"city":"","category":"","name":"Suggested Hotel","options":[],"mealPlan":""},"activities":[],"optional":[]}],"hotels":[{"city":"","nights":0,"options":[]}],"transportPlan":[{"route":"","mode":"","distance":"","duration":"","cost":""}],"cost":{"hotels":"","transport":"","activities":"","meals":"","miscellaneous":"","total":"","perPerson":""},"packageOptions":[{"name":"BUDGET","details":""},{"name":"COMFORT","details":""},{"name":"PREMIUM","details":""}],"inclusions":[],"exclusions":[],"tips":[],"importantNotes":[],"packing":[],"emergency":[]}. The destination MUST come from the user's current request. Never use a previously used destination, example destination, mock destination, or hardcoded destination. Generate the complete itinerary content for exactly ${input.destination}; do not rename another destination's itinerary. Dates are calculated programmatically: when startDate and endDate exist they take priority and the application supplies the correct number of days. Return exactly ${tripDates.days} days with destination-specific routes, attractions, local food recommendations, overnight cities, and realistic travel details. Use approximate language when prices are unconfirmed.`
 
-    const isOpenRouter = Boolean(openRouterKey)
-    const response = await fetch(isOpenRouter ? 'https://openrouter.ai/api/v1/chat/completions' : 'https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-        ...(isOpenRouter ? { 'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000', 'X-Title': 'The Himalayan Travels Itinerary Planner' } : {}),
+    const isGemini = Boolean(geminiKey)
+    const isOpenRouter = !isGemini && Boolean(openRouterKey)
+    const structuredRequest = JSON.stringify({
+      userQuery,
+      origin: input.origin,
+      destination: input.destination,
+      duration: tripDates.days,
+      startDate: tripDates.startDate,
+      endDate: tripDates.endDate,
+      adults: input.adults,
+      children: input.children,
+      travellerType: input.travellerType,
+      preferences: {
+        tripType: input.tripType,
+        budget: input.budget,
+        hotelCategory: input.hotelCategory,
+        transport: input.transport,
+        meals: input.meals,
+        requirements: input.requirements,
       },
-      body: JSON.stringify({
-        model: isOpenRouter ? (process.env.OPENROUTER_MODEL || 'openrouter/free') : (process.env.OPENAI_MODEL || 'gpt-4o-mini'),
-        temperature: 0.65,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: `You are an expert Indian travel planner and itinerary architect for The Himalayan Travels. ${schemaPrompt}` },
-          { role: 'user', content: JSON.stringify({ ...input, startDate: tripDates.startDate, endDate: tripDates.endDate, days: tripDates.days }) },
-        ],
-      }),
     })
 
+    const providerUrl = isGemini
+      ? `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || 'gemini-3.8-flash'}:generateContent`
+      : isOpenRouter
+        ? 'https://openrouter.ai/api/v1/chat/completions'
+        : 'https://api.openai.com/v1/chat/completions'
+    const providerRequest: RequestInit = {
+        method: 'POST',
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(isGemini
+            ? { 'x-goog-api-key': apiKey }
+            : {
+                Authorization: `Bearer ${apiKey}`,
+                ...(isOpenRouter ? { 'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000', 'X-Title': 'The Himalayan Travels Itinerary Planner' } : {}),
+              }),
+        },
+        body: JSON.stringify(
+          isGemini
+            ? {
+                systemInstruction: {
+                  parts: [{ text: `You are an expert Indian travel planner and itinerary architect for The Himalayan Travels. ${schemaPrompt}` }],
+                },
+                contents: [{ role: 'user', parts: [{ text: structuredRequest }] }],
+                generationConfig: {
+                  temperature: 0.65,
+                  responseMimeType: 'application/json',
+                },
+              }
+            : {
+                model: isOpenRouter ? (process.env.OPENROUTER_MODEL || 'openrouter/free') : (process.env.OPENAI_MODEL || 'gpt-4o-mini'),
+                temperature: 0.65,
+                response_format: { type: 'json_object' },
+                messages: [
+                  { role: 'system', content: `You are an expert Indian travel planner and itinerary architect for The Himalayan Travels. ${schemaPrompt}` },
+                  { role: 'user', content: structuredRequest },
+                ],
+              },
+        ),
+      }
+    let response = await fetch(providerUrl, providerRequest)
+    for (let retry = 0; isGemini && retry < 2 && [429, 503, 504].includes(response.status); retry += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 700 * (retry + 1)))
+      response = await fetch(providerUrl, providerRequest)
+    }
+
     if (!response.ok) {
-      return NextResponse.json(fallbackResult)
+      const providerError = await response.json().catch(() => null)
+      const providerMessage = typeof providerError?.error?.message === 'string'
+        ? providerError.error.message.replaceAll(apiKey, '[redacted]').slice(0, 240)
+        : 'No provider error details returned'
+      console.warn(`${isGemini ? 'Gemini' : isOpenRouter ? 'OpenRouter' : 'OpenAI'} itinerary request failed with HTTP ${response.status}: ${providerMessage}`)
+      return NextResponse.json(fallbackResult, { headers: { 'Cache-Control': 'no-store' } })
     }
 
     const completion = await response.json()
-    const parsed = JSON.parse(completion.choices?.[0]?.message?.content || '') as StructuredItinerary
+    const generatedText = isGemini
+      ? completion.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text || '').join('')
+      : completion.choices?.[0]?.message?.content
+    const parsed = JSON.parse(generatedText || '') as StructuredItinerary
 
-    if (!parsed || !Array.isArray(parsed.days) || parsed.days.length === 0) {
-      return NextResponse.json(fallbackResult)
+    const requestedDestination = input.destination.trim().toLowerCase()
+    const responseDestination = parsed?.trip?.destination?.trim().toLowerCase() || ''
+    const generatedContent = [parsed?.title, parsed?.summary, ...(parsed?.route || []), ...(parsed?.days || []).flatMap((day) => [day.title, day.location, day.summary, ...day.morning, ...day.afternoon, ...day.evening, ...day.night, ...day.activities])].join(' ').toLowerCase()
+
+    if (
+      !parsed ||
+      !Array.isArray(parsed.days) ||
+      parsed.days.length !== tripDates.days ||
+      !responseDestination.includes(requestedDestination) ||
+      !generatedContent.includes(requestedDestination)
+    ) {
+      return NextResponse.json(fallbackResult, { headers: { 'Cache-Control': 'no-store' } })
     }
 
     return NextResponse.json({
       ...parsed,
       trip: {
         ...parsed.trip,
+        origin: input.origin,
+        destination: input.destination,
+        days: tripDates.days,
         startDate: tripDates.startDate,
         endDate: tripDates.endDate,
         duration: `${tripDates.days} Days / ${tripDates.nights} Nights`,
@@ -857,10 +814,12 @@ export async function POST(request: Request) {
       },
       days: parsed.days.map((day, index) => ({
         ...day,
+        day: index + 1,
         date: day.date || tripDates.dates[index] || `Day ${index + 1}`,
       })),
-    })
-  } catch {
+    }, { headers: { 'Cache-Control': 'no-store' } })
+  } catch (error) {
+    console.error('Itinerary generation failed:', error)
     return NextResponse.json({ error: 'Could not create the itinerary. Please try again.' }, { status: 500 })
   }
 }

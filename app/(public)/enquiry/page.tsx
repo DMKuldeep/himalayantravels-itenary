@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import EnquiryForm from '@/components/EnquiryForm'
 import { Phone, Mail, MapPin, MessageCircle } from 'lucide-react'
 import type { Metadata } from 'next'
+import { companyContact } from '@/lib/company'
 
 export const metadata: Metadata = { title: 'Enquire Now | Plan Your Trip' }
 
@@ -22,10 +23,10 @@ export default function EnquiryPage() {
           <h2 className="font-bold text-lg mb-5">Contact Us</h2>
           <div className="space-y-5 mb-8">
             {[
-              { icon: Phone, label: 'Phone', value: '+91 98765 43210', href: 'tel:+919876543210' },
-              { icon: MessageCircle, label: 'WhatsApp', value: '+91 98765 43210', href: 'https://wa.me/919876543210' },
-              { icon: Mail, label: 'Email', value: 'info@thehimalayantravels.com', href: 'mailto:info@thehimalayantravels.com' },
-              { icon: MapPin, label: 'Address', value: 'Gurugram, Haryana, India', href: '#' },
+              { icon: Phone, label: 'Phone', value: companyContact.phone, href: companyContact.phoneHref },
+              { icon: MessageCircle, label: 'WhatsApp', value: companyContact.phone, href: companyContact.whatsappHref },
+              { icon: Mail, label: 'Email', value: companyContact.email, href: `mailto:${companyContact.email}` },
+              { icon: MapPin, label: 'Address', value: companyContact.address, href: '#' },
             ].map(({ icon: Icon, label, value, href }) => (
               <a key={label} href={href}
                 className="flex items-start gap-3 p-4 bg-white rounded-xl border border-gray-100 hover:shadow-sm transition-shadow">

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import {
   CalendarDays,
   Check,
@@ -13,6 +13,8 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
+import { extractTripRequest, suggestedDuration } from "@/lib/trip-request";
+import { companyContact } from "@/lib/company";
 
 type Day = {
   day: number;
@@ -114,16 +116,6 @@ const initialForm: FormState = {
   requirements: "",
 };
 
-const companyProfile = {
-  name: "The Himalayan Travels",
-  website: "https://thehimalayantravels.com",
-  email: "info@thehimalayantravels.com",
-  phone: "+91 98765 43210",
-  whatsapp: "+91 98765 43210",
-  gst: "02GCYPK3256A1ZN",
-  address: "Gurugram, Haryana, India",
-};
-
 function bullets(items: string[]) {
   return (
     <ul className="mt-2 space-y-1 text-sm leading-relaxed text-slate-600">
@@ -150,183 +142,39 @@ function calculateTravelDays(startDate: string, endDate: string, fallbackDays: n
 }
 
 function suggestTripDuration(destination: string) {
-  const normalized = destination.toLowerCase();
-  if (normalized.includes("nainital") && normalized.includes("mussoorie")) return 5;
-  if (normalized.includes("nainital")) return 3;
-  if (normalized.includes("mussoorie")) return 4;
-  if (normalized.includes("goa")) return 4;
-  if (normalized.includes("manali")) return 4;
-  if (normalized.includes("kashmir") || normalized.includes("leh") || normalized.includes("shimla")) return 5;
-  return 4;
+  return suggestedDuration(destination);
 }
 
 function parseNaturalLanguagePrompt(rawPrompt: string, fallback: FormState) {
-  const prompt = rawPrompt.trim();
-  if (!prompt) return fallback;
+  if (!rawPrompt.trim()) return fallback;
+  const extracted = extractTripRequest(rawPrompt);
+  const lower = rawPrompt.toLowerCase();
+  let travellerType = fallback.travellerType;
+  let adults = fallback.adults;
+  if (/solo|single/.test(lower)) {
+    travellerType = "Solo";
+    adults = "1";
+  } else if (/family/.test(lower)) {
+    travellerType = "Family";
+    adults = "4";
+  } else if (/friends|group/.test(lower)) {
+    travellerType = "Friends";
+    adults = "4";
+  } else if (/couple|honeymoon/.test(lower)) {
+    travellerType = "Couple";
+    adults = "2";
+  }
 
-  const lower = prompt.toLowerCase();
-  const monthMap: Record<string, string> = {
-    jan: "01",
-    january: "01",
-    feb: "02",
-    february: "02",
-    mar: "03",
-    march: "03",
-    apr: "04",
-    april: "04",
-    may: "05",
-    jun: "06",
-    june: "06",
-    jul: "07",
-    july: "07",
-    aug: "08",
-    august: "08",
-    sep: "09",
-    sept: "09",
-    september: "09",
-    oct: "10",
-    october: "10",
-    nov: "11",
-    november: "11",
-    dec: "12",
-    december: "12",
+  return {
+    ...fallback,
+    origin: extracted.origin || fallback.origin,
+    destination: extracted.destination || fallback.destination,
+    days: extracted.days ? String(extracted.days) : fallback.days,
+    startDate: extracted.startDate || fallback.startDate,
+    endDate: extracted.endDate || fallback.endDate,
+    adults,
+    travellerType,
   };
-
-  const dateMatches = Array.from(
-    prompt.matchAll(
-      /(\d{1,2})(?:st|nd|rd|th)?\s*(?:of\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december)(?:\s+(\d{4}))?/gi,
-    ),
-  );
-
-  const parseTextDate = (day: string, month: string, year?: string) => {
-    const monthKey = month.toLowerCase();
-    const realMonth = monthMap[monthKey];
-    if (!realMonth) return "";
-    const y = year || new Date().getFullYear();
-    return `${y}-${realMonth}-${String(day).padStart(2, "0")}`;
-  };
-
-  const dateValues = dateMatches
-    .map((match) => parseTextDate(match[1], match[2], match[3]))
-    .filter(Boolean);
-
-  const result = { ...fallback };
-  const dayMatch = prompt.match(/(\d+)\s*(?:day|days)/i);
-  if (dayMatch && Number(dayMatch[1])) {
-    result.days = String(Math.max(3, Math.min(Number(dayMatch[1]), 15)));
-  }
-
-  const places = [
-    "naukuchiatal",
-    "kainchi dham",
-    "nainital",
-    "mussoorie",
-    "bhimtal",
-    "mukteshwar",
-    "ranikhet",
-    "dalhousie",
-    "rishikesh",
-    "haridwar",
-    "srinagar",
-    "kashmir",
-    "manali",
-    "shimla",
-    "jaipur",
-    "kerala",
-    "goa",
-    "leh",
-    "delhi",
-    "mumbai",
-    "agra",
-    "sattal",
-    "almora",
-    "bhowali",
-  ];
-  const canonicalPlaces: Record<string, string> = {
-    naukuchiatal: "Naukuchiatal",
-    "kainchi dham": "Kainchi Dham",
-    nainital: "Nainital",
-    mussoorie: "Mussoorie",
-    bhimtal: "Bhimtal",
-    mukteshwar: "Mukteshwar",
-    ranikhet: "Ranikhet",
-    dalhousie: "Dalhousie",
-    rishikesh: "Rishikesh",
-    haridwar: "Haridwar",
-    srinagar: "Srinagar",
-    kashmir: "Kashmir",
-    manali: "Manali",
-    shimla: "Shimla",
-    jaipur: "Jaipur",
-    kerala: "Kerala",
-    goa: "Goa",
-    leh: "Leh",
-    delhi: "Delhi",
-    mumbai: "Mumbai",
-    agra: "Agra",
-    sattal: "Sattal",
-    almora: "Almora",
-    bhowali: "Bhowali",
-  };
-  const matches = places
-    .flatMap((place) => {
-      const escaped = place.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      return Array.from(prompt.matchAll(new RegExp(`\\b${escaped}\\b`, "gi"))).map((match) => ({
-        name: canonicalPlaces[place],
-        index: match.index || 0,
-      }));
-    })
-    .sort((left, right) => left.index - right.index);
-  const hindiOrigin = prompt.match(/^\s*([A-Za-z][A-Za-z\s.-]*?)\s+se\s+/i)?.[1]?.trim();
-  const englishOrigin = prompt.match(/\bfrom\s+([A-Za-z][A-Za-z\s.-]*?)(?=\s+to\b|\s+for\b|$)/i)?.[1]?.trim();
-  const parsedOrigin = hindiOrigin || englishOrigin || "";
-  const foundPlaces = [...new Map(matches.map((match) => [match.name.toLowerCase(), match.name])).values()]
-    .filter((place) => place.toLowerCase() !== parsedOrigin.toLowerCase());
-
-  if (parsedOrigin) result.origin = parsedOrigin;
-  if (foundPlaces.length) result.destination = foundPlaces.join(" + ");
-  else if (!result.destination) {
-    const cleanedPrompt = prompt
-      .replace(/\d{1,2}(?:st|nd|rd|th)?\s*(?:of\s+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december)(?:\s+\d{4})?/gi, " ")
-      .replace(/\b\d+\s*days?\b/gi, " ")
-      .replace(/\b(?:from|to|se|aur|and|for|couple|family|friends|group|trip|itinerary|travel|tour|vacation|destination|origin)\b/gi, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    result.destination = cleanedPrompt.replace(new RegExp(`^${parsedOrigin}\\s*`, "i"), "").trim();
-  }
-
-  if (!result.origin) result.origin = "Delhi";
-
-  if (dateValues.length >= 2) {
-    result.startDate = dateValues[0];
-    result.endDate = dateValues[1];
-    const diffInDays = Math.round(
-      (new Date(dateValues[1]).getTime() - new Date(dateValues[0]).getTime()) / 86400000,
-    ) + 1;
-    if (diffInDays > 0) result.days = String(Math.max(1, diffInDays));
-  } else if (dateValues.length === 1) {
-    result.startDate = dateValues[0];
-  }
-
-  if (!result.days || result.days === "") {
-    result.days = String(suggestTripDuration(result.destination || "Nainital"));
-  }
-
-  if (/solo|single/.test(prompt)) {
-    result.adults = "1";
-    result.travellerType = "Solo";
-  } else if (/family/.test(prompt)) {
-    result.adults = "4";
-    result.travellerType = "Family";
-  } else if (/friends|group/.test(prompt)) {
-    result.adults = "4";
-    result.travellerType = "Friends";
-  } else if (/couple|honeymoon/.test(prompt)) {
-    result.adults = "2";
-    result.travellerType = "Couple";
-  }
-
-  return result;
 }
 
 export default function HomePage() {
@@ -367,10 +215,12 @@ export default function HomePage() {
     ...form,
     days: "",
   });
-  const suggestedDays = suggestTripDuration(
-    parsedPromptForForm.destination || form.destination || "Nainital",
+  const suggestedDays = suggestedDuration(
+    parsedPromptForForm.destination || form.destination,
   );
   const promptDays = parsedPromptForForm.days || "";
+
+  const requestId = useRef(0);
 
   function change(field: keyof FormState, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -378,6 +228,7 @@ export default function HomePage() {
 
   async function generate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const currentRequestId = ++requestId.current;
     if (!tripPrompt.trim() && !form.destination.trim()) {
       setError("Enter a destination or describe your trip above.");
       return;
@@ -394,21 +245,26 @@ export default function HomePage() {
         ...form,
         ...parsedForm,
         origin: parsedForm.origin || form.origin || "Delhi",
-        destination: parsedForm.destination || form.destination || "Nainital",
+        destination: parsedForm.destination || form.destination,
         adults: parsedForm.adults || form.adults || "2",
         children: parsedForm.children || form.children || "0",
       };
+      if (!mergedForm.destination.trim()) {
+        throw new Error("Please enter a destination or describe the trip in the prompt.");
+      }
 
       const daysFromDates = calculateTravelDays(
         mergedForm.startDate,
         mergedForm.endDate,
-        Number(mergedForm.days) || suggestTripDuration(mergedForm.destination),
+        Number(mergedForm.days) || suggestedDuration(mergedForm.destination),
       );
       const response = await fetch("/api/itinerary", {
         method: "POST",
+        cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...mergedForm,
+          userQuery: tripPrompt.trim(),
           days: daysFromDates,
           adults: Number(mergedForm.adults),
           children: Number(mergedForm.children),
@@ -417,15 +273,18 @@ export default function HomePage() {
       const result = await response.json();
       if (!response.ok)
         throw new Error(result.error || "Could not create your itinerary.");
+      if (currentRequestId !== requestId.current) return;
       setMasterItinerary(result as Itinerary);
     } catch (generationError) {
-      setError(
-        generationError instanceof Error
-          ? generationError.message
-          : "Something went wrong.",
-      );
+      if (currentRequestId === requestId.current) {
+        setError(
+          generationError instanceof Error
+            ? generationError.message
+            : "Something went wrong.",
+        );
+      }
     } finally {
-      setLoading(false);
+      if (currentRequestId === requestId.current) setLoading(false);
     }
   }
 
@@ -523,7 +382,7 @@ export default function HomePage() {
               <div>
                 <p className="print-brand">THE HIMALAYAN TRAVELS</p>
                 <p className="print-contact">
-                  GST: {companyProfile.gst} · {companyProfile.phone}
+                  GST: {companyContact.gst} · {companyContact.phone}
                 </p>
               </div>
               <p className="print-document-label">{categoryTitle}</p>
@@ -784,7 +643,7 @@ function PlannerForm({
           icon={<Sparkles size={17} />}
           value={tripPrompt}
           onChange={setTripPrompt}
-          placeholder='Examples: "Nainital itinerary", "Delhi se Goa 7 days for couple", "Nainital aur Mussoorie 5 days"'
+          placeholder='Examples: "Destination itinerary", "Origin to destination for 4 days", "Trip from origin to destination"'
         />
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

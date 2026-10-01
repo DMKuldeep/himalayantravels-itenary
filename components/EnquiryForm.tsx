@@ -63,7 +63,7 @@ export default function EnquiryForm({ packageId, packageName, destinationName, c
         </div>
         <div>
           <label className="form-label">Phone / WhatsApp *</label>
-          <input name="phone" value={form.phone} onChange={handleChange} placeholder="+91 98765 43210" className="form-input" type="tel" required />
+          <input name="phone" value={form.phone} onChange={handleChange} placeholder="+91-8505983792" className="form-input" type="tel" required />
         </div>
         <div>
           <label className="form-label">Email</label>

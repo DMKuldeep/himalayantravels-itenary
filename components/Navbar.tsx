@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Menu, X, Phone, ChevronDown } from 'lucide-react'
+import { companyContact } from '@/lib/company'
 
 const NAV_LINKS = [
   { label: 'Home', href: '/' },
@@ -44,8 +45,8 @@ export default function Navbar() {
       {/* Top bar */}
       <div className="bg-[#0d2137] py-1.5 px-4 hidden md:flex justify-between items-center text-xs text-white/60">
         <span>✦ Trusted Travel Partner Since 2010 | IATA Registered</span>
-        <a href="tel:+919876543210" className="flex items-center gap-1 hover:text-white transition-colors">
-          <Phone size={11} /> +91 98765 43210
+        <a href={companyContact.phoneHref} className="flex items-center gap-1 hover:text-white transition-colors">
+          <Phone size={11} /> {companyContact.phone}
         </a>
       </div>
 

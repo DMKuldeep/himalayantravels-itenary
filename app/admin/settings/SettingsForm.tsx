@@ -60,25 +60,25 @@ export default function SettingsForm({ initialSettings }: Props) {
             <label className={labelCls}>Phone Number</label>
             <input className={inputCls} value={contact.phone}
               onChange={e => setContact(c => ({ ...c, phone: e.target.value }))}
-              placeholder="+91 98765 43210" />
+              placeholder="+91-8505983792" />
           </div>
           <div>
             <label className={labelCls}>WhatsApp Number (with country code, no +)</label>
             <input className={inputCls} value={contact.whatsapp}
               onChange={e => setContact(c => ({ ...c, whatsapp: e.target.value }))}
-              placeholder="919876543210" />
+              placeholder="918505983792" />
           </div>
           <div>
             <label className={labelCls}>Email Address</label>
             <input className={inputCls} type="email" value={contact.email}
               onChange={e => setContact(c => ({ ...c, email: e.target.value }))}
-              placeholder="info@thehimalayantravels.com" />
+              placeholder="thehimalayantravels9@gmail.com" />
           </div>
           <div>
             <label className={labelCls}>Office Address</label>
             <input className={inputCls} value={contact.address}
               onChange={e => setContact(c => ({ ...c, address: e.target.value }))}
-              placeholder="Gurugram, Haryana, India" />
+              placeholder="Manali, Himachal Pradesh, India" />
           </div>
         </div>
       </div>

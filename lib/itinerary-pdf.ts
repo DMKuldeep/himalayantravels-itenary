@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf'
+import { companyContact } from '@/lib/company'
 
 type PdfDay = {
   day: number
@@ -44,15 +45,7 @@ type PdfItinerary = {
   tips: string[]
 }
 
-const company = {
-  name: 'THE HIMALAYAN TRAVELS',
-  website: 'https://thehimalayantravels.com',
-  email: 'info@thehimalayantravels.com',
-  phone: '+91 98765 43210',
-  whatsapp: '+91 98765 43210',
-  address: 'Gurugram, Haryana, India',
-  gst: '02GCYPK3256A1ZN',
-}
+const company = companyContact
 
 const palette = {
   ink: [30, 47, 59] as const,
@@ -354,7 +347,7 @@ export function createItineraryPdf(itinerary: PdfItinerary, category: Category) 
   pdf.text(company.name, margin + 5, cursorY + 10)
   setText(palette.ink, 8)
   pdf.text(company.address, margin + 5, cursorY + 17)
-  pdf.text(`Phone: ${company.phone} | WhatsApp: ${company.whatsapp}`, margin + 5, cursorY + 23)
+  pdf.text(`Phone / WhatsApp: ${company.phone}`, margin + 5, cursorY + 23)
   pdf.text(`Email: ${company.email} | GST: ${company.gst}`, margin + 5, cursorY + 29)
   pdf.textWithLink(company.website, margin + 5, cursorY + 35, { url: company.website })
   setText(palette.gold, 8, true)

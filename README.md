@@ -12,6 +12,9 @@ Complete travel site with admin panel and Supabase backend.
 ### 4. Copy .env.local.example to .env.local and fill values
 ### 5. npm install && npm run dev
 
+## Itinerary AI
+Add `GEMINI_API_KEY=your-rotated-key` to the ignored `.env.local` file to enable Gemini itinerary generation. The key is read only by the server-side API. `GEMINI_MODEL` is optional and defaults to `gemini-3.8-flash`. OpenRouter and OpenAI remain supported if Gemini is not configured.
+
 ## Deploy to Vercel
 1. Push to GitHub
 2. Import on vercel.com, add env vars, deploy

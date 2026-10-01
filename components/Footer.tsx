@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Phone, Mail, MapPin, MessageCircle } from 'lucide-react'
+import { companyContact } from '@/lib/company'
 
 export default function Footer() {
   return (
@@ -74,20 +75,19 @@ export default function Footer() {
               <li className="flex gap-3">
                 <Phone size={15} className="text-[#c8922a] mt-0.5 shrink-0" />
                 <div>
-                  <a href="tel:+919876543210" className="text-white/70 text-sm hover:text-white block">+91 98765 43210</a>
-                  <a href="tel:+919876543211" className="text-white/70 text-sm hover:text-white block">+91 98765 43211</a>
+                  <a href={companyContact.phoneHref} className="text-white/70 text-sm hover:text-white block">{companyContact.phone}</a>
                 </div>
               </li>
               <li className="flex gap-3">
                 <Mail size={15} className="text-[#c8922a] mt-0.5 shrink-0" />
-                <a href="mailto:info@thehimalayantravels.com" className="text-white/70 text-sm hover:text-white">info@thehimalayantravels.com</a>
+                <a href={`mailto:${companyContact.email}`} className="text-white/70 text-sm hover:text-white">{companyContact.email}</a>
               </li>
               <li className="flex gap-3">
                 <MapPin size={15} className="text-[#c8922a] mt-0.5 shrink-0" />
-                <span className="text-white/70 text-sm">Gurugram, Haryana, India</span>
+                <span className="text-white/70 text-sm">{companyContact.address}</span>
               </li>
             </ul>
-            <a href="https://wa.me/919876543210"
+            <a href={companyContact.whatsappHref}
               className="mt-5 inline-flex items-center gap-2 bg-green-600 text-white text-sm px-4 py-2.5 rounded-lg hover:bg-green-700 transition-colors w-full justify-center font-medium">
               <MessageCircle size={15} /> Chat on WhatsApp
             </a>

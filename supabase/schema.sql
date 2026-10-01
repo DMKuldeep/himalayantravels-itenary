@@ -128,7 +128,7 @@ CREATE TABLE site_settings (
 
 -- Insert default settings
 INSERT INTO site_settings (key, value) VALUES
-  ('contact', '{"phone": "+91 98XXX XXXXX", "email": "info@thehimalayantravels.com", "whatsapp": "919876543210", "address": "Gurugram, Haryana, India"}'),
+  ('contact', '{"phone": "+91-8505983792", "email": "thehimalayantravels9@gmail.com", "whatsapp": "918505983792", "address": "Manali, Himachal Pradesh, India"}'),
   ('hero', '{"title": "Discover the Himalayas", "subtitle": "Like Never Before", "description": "Handcrafted tour packages to Himachal Pradesh, Ladakh, Uttarakhand & beyond."}'),
   ('stats', '{"travellers": "5000+", "packages": "120+", "destinations": "25+", "experience": "14"}');
 
