@@ -7,8 +7,8 @@ function fallbackImage(destination: string, day: number) {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
-async function destinationPhoto(destination: string) {
-  const search = encodeURIComponent(`${destination} landmark landscape`)
+async function destinationPhoto(destination: string, dayTitle: string) {
+  const search = encodeURIComponent(`${dayTitle} ${destination} landmark landscape`)
   const searchResponse = await fetch(`https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${search}&gsrnamespace=6&gsrlimit=1&prop=imageinfo&iiprop=url&iiurlwidth=1400&format=json`, { next: { revalidate: 86400 } })
   if (!searchResponse.ok) return null
   const result = await searchResponse.json()
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     }
 
     if (!process.env.OPENAI_API_KEY) {
-      const image = await destinationPhoto(destination).catch(() => null)
+      const image = await destinationPhoto(destination, typeof title === 'string' ? title : '').catch(() => null)
       return NextResponse.json({ image: image || fallbackImage(destination, day) })
     }
 

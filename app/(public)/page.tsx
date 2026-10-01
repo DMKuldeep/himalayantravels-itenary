@@ -102,7 +102,7 @@ const initialForm: FormState = {
   destination: "",
   startDate: "",
   endDate: "",
-  days: "7",
+  days: "",
   adults: "2",
   children: "0",
   travellerType: "Couple",
@@ -113,8 +113,16 @@ const initialForm: FormState = {
   tripType: "Leisure",
   requirements: "",
 };
-const gstNumber = "02GCYPK3256A1ZN";
-const contactNumber = "+91 85059 83792";
+
+const companyProfile = {
+  name: "The Himalayan Travels",
+  website: "https://thehimalayantravels.com",
+  email: "info@thehimalayantravels.com",
+  phone: "+91 98765 43210",
+  whatsapp: "+91 98765 43210",
+  gst: "02GCYPK3256A1ZN",
+  address: "Gurugram, Haryana, India",
+};
 
 function bullets(items: string[]) {
   return (
@@ -129,30 +137,206 @@ function bullets(items: string[]) {
   );
 }
 
-function imageAsPng(source: string) {
-  return new Promise<string>((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = image.naturalWidth || 1400;
-      canvas.height = image.naturalHeight || 700;
-      canvas.getContext("2d")?.drawImage(image, 0, 0);
-      resolve(canvas.toDataURL("image/png"));
-    };
-    image.onerror = () =>
-      reject(new Error("Could not prepare itinerary image"));
-    image.src = source;
-  });
+function calculateTravelDays(startDate: string, endDate: string, fallbackDays: number) {
+  if (!startDate || !endDate) return Number(fallbackDays) || 5;
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return Number(fallbackDays) || 5;
+  }
+  const diffInMs = end.getTime() - start.getTime();
+  const diffInDays = Math.round(diffInMs / 86400000) + 1;
+  return Math.max(1, diffInDays);
+}
+
+function suggestTripDuration(destination: string) {
+  const normalized = destination.toLowerCase();
+  if (normalized.includes("nainital") && normalized.includes("mussoorie")) return 5;
+  if (normalized.includes("nainital")) return 3;
+  if (normalized.includes("mussoorie")) return 4;
+  if (normalized.includes("goa")) return 4;
+  if (normalized.includes("manali")) return 4;
+  if (normalized.includes("kashmir") || normalized.includes("leh") || normalized.includes("shimla")) return 5;
+  return 4;
+}
+
+function parseNaturalLanguagePrompt(rawPrompt: string, fallback: FormState) {
+  const prompt = rawPrompt.trim();
+  if (!prompt) return fallback;
+
+  const lower = prompt.toLowerCase();
+  const monthMap: Record<string, string> = {
+    jan: "01",
+    january: "01",
+    feb: "02",
+    february: "02",
+    mar: "03",
+    march: "03",
+    apr: "04",
+    april: "04",
+    may: "05",
+    jun: "06",
+    june: "06",
+    jul: "07",
+    july: "07",
+    aug: "08",
+    august: "08",
+    sep: "09",
+    sept: "09",
+    september: "09",
+    oct: "10",
+    october: "10",
+    nov: "11",
+    november: "11",
+    dec: "12",
+    december: "12",
+  };
+
+  const dateMatches = Array.from(
+    prompt.matchAll(
+      /(\d{1,2})(?:st|nd|rd|th)?\s*(?:of\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december)(?:\s+(\d{4}))?/gi,
+    ),
+  );
+
+  const parseTextDate = (day: string, month: string, year?: string) => {
+    const monthKey = month.toLowerCase();
+    const realMonth = monthMap[monthKey];
+    if (!realMonth) return "";
+    const y = year || new Date().getFullYear();
+    return `${y}-${realMonth}-${String(day).padStart(2, "0")}`;
+  };
+
+  const dateValues = dateMatches
+    .map((match) => parseTextDate(match[1], match[2], match[3]))
+    .filter(Boolean);
+
+  const result = { ...fallback };
+  const dayMatch = prompt.match(/(\d+)\s*(?:day|days)/i);
+  if (dayMatch && Number(dayMatch[1])) {
+    result.days = String(Math.max(3, Math.min(Number(dayMatch[1]), 15)));
+  }
+
+  const places = [
+    "naukuchiatal",
+    "kainchi dham",
+    "nainital",
+    "mussoorie",
+    "bhimtal",
+    "mukteshwar",
+    "ranikhet",
+    "dalhousie",
+    "rishikesh",
+    "haridwar",
+    "srinagar",
+    "kashmir",
+    "manali",
+    "shimla",
+    "jaipur",
+    "kerala",
+    "goa",
+    "leh",
+    "delhi",
+    "mumbai",
+    "agra",
+    "sattal",
+    "almora",
+    "bhowali",
+  ];
+  const canonicalPlaces: Record<string, string> = {
+    naukuchiatal: "Naukuchiatal",
+    "kainchi dham": "Kainchi Dham",
+    nainital: "Nainital",
+    mussoorie: "Mussoorie",
+    bhimtal: "Bhimtal",
+    mukteshwar: "Mukteshwar",
+    ranikhet: "Ranikhet",
+    dalhousie: "Dalhousie",
+    rishikesh: "Rishikesh",
+    haridwar: "Haridwar",
+    srinagar: "Srinagar",
+    kashmir: "Kashmir",
+    manali: "Manali",
+    shimla: "Shimla",
+    jaipur: "Jaipur",
+    kerala: "Kerala",
+    goa: "Goa",
+    leh: "Leh",
+    delhi: "Delhi",
+    mumbai: "Mumbai",
+    agra: "Agra",
+    sattal: "Sattal",
+    almora: "Almora",
+    bhowali: "Bhowali",
+  };
+  const matches = places
+    .flatMap((place) => {
+      const escaped = place.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return Array.from(prompt.matchAll(new RegExp(`\\b${escaped}\\b`, "gi"))).map((match) => ({
+        name: canonicalPlaces[place],
+        index: match.index || 0,
+      }));
+    })
+    .sort((left, right) => left.index - right.index);
+  const hindiOrigin = prompt.match(/^\s*([A-Za-z][A-Za-z\s.-]*?)\s+se\s+/i)?.[1]?.trim();
+  const englishOrigin = prompt.match(/\bfrom\s+([A-Za-z][A-Za-z\s.-]*?)(?=\s+to\b|\s+for\b|$)/i)?.[1]?.trim();
+  const parsedOrigin = hindiOrigin || englishOrigin || "";
+  const foundPlaces = [...new Map(matches.map((match) => [match.name.toLowerCase(), match.name])).values()]
+    .filter((place) => place.toLowerCase() !== parsedOrigin.toLowerCase());
+
+  if (parsedOrigin) result.origin = parsedOrigin;
+  if (foundPlaces.length) result.destination = foundPlaces.join(" + ");
+  else if (!result.destination) {
+    const cleanedPrompt = prompt
+      .replace(/\d{1,2}(?:st|nd|rd|th)?\s*(?:of\s+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december)(?:\s+\d{4})?/gi, " ")
+      .replace(/\b\d+\s*days?\b/gi, " ")
+      .replace(/\b(?:from|to|se|aur|and|for|couple|family|friends|group|trip|itinerary|travel|tour|vacation|destination|origin)\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    result.destination = cleanedPrompt.replace(new RegExp(`^${parsedOrigin}\\s*`, "i"), "").trim();
+  }
+
+  if (!result.origin) result.origin = "Delhi";
+
+  if (dateValues.length >= 2) {
+    result.startDate = dateValues[0];
+    result.endDate = dateValues[1];
+    const diffInDays = Math.round(
+      (new Date(dateValues[1]).getTime() - new Date(dateValues[0]).getTime()) / 86400000,
+    ) + 1;
+    if (diffInDays > 0) result.days = String(Math.max(1, diffInDays));
+  } else if (dateValues.length === 1) {
+    result.startDate = dateValues[0];
+  }
+
+  if (!result.days || result.days === "") {
+    result.days = String(suggestTripDuration(result.destination || "Nainital"));
+  }
+
+  if (/solo|single/.test(prompt)) {
+    result.adults = "1";
+    result.travellerType = "Solo";
+  } else if (/family/.test(prompt)) {
+    result.adults = "4";
+    result.travellerType = "Family";
+  } else if (/friends|group/.test(prompt)) {
+    result.adults = "4";
+    result.travellerType = "Friends";
+  } else if (/couple|honeymoon/.test(prompt)) {
+    result.adults = "2";
+    result.travellerType = "Couple";
+  }
+
+  return result;
 }
 
 export default function HomePage() {
   const [form, setForm] = useState(initialForm);
+  const [tripPrompt, setTripPrompt] = useState("");
   const [masterItinerary, setMasterItinerary] = useState<Itinerary | null>(
     null,
   );
   const [category, setCategory] = useState<Category>(1);
   const [loading, setLoading] = useState(false);
-  const [imagesLoading, setImagesLoading] = useState(false);
   const [error, setError] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [showHotels, setShowHotels] = useState(false);
@@ -179,6 +363,14 @@ export default function HomePage() {
         cost: masterItinerary.cost,
       }
     : null;
+  const parsedPromptForForm = parseNaturalLanguagePrompt(tripPrompt, {
+    ...form,
+    days: "",
+  });
+  const suggestedDays = suggestTripDuration(
+    parsedPromptForForm.destination || form.destination || "Nainital",
+  );
+  const promptDays = parsedPromptForForm.days || "";
 
   function change(field: keyof FormState, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -186,6 +378,10 @@ export default function HomePage() {
 
   async function generate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!tripPrompt.trim() && !form.destination.trim()) {
+      setError("Enter a destination or describe your trip above.");
+      return;
+    }
     setLoading(true);
     setError("");
     setMasterItinerary(null);
@@ -193,44 +389,35 @@ export default function HomePage() {
     setConfirmed(false);
     setShowHotels(false);
     try {
+      const parsedForm = parseNaturalLanguagePrompt(tripPrompt, form);
+      const mergedForm = {
+        ...form,
+        ...parsedForm,
+        origin: parsedForm.origin || form.origin || "Delhi",
+        destination: parsedForm.destination || form.destination || "Nainital",
+        adults: parsedForm.adults || form.adults || "2",
+        children: parsedForm.children || form.children || "0",
+      };
+
+      const daysFromDates = calculateTravelDays(
+        mergedForm.startDate,
+        mergedForm.endDate,
+        Number(mergedForm.days) || suggestTripDuration(mergedForm.destination),
+      );
       const response = await fetch("/api/itinerary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...form,
-          days: Number(form.days),
-          adults: Number(form.adults),
-          children: Number(form.children),
+          ...mergedForm,
+          days: daysFromDates,
+          adults: Number(mergedForm.adults),
+          children: Number(mergedForm.children),
         }),
       });
       const result = await response.json();
       if (!response.ok)
         throw new Error(result.error || "Could not create your itinerary.");
-      const base = result as Itinerary;
-      setMasterItinerary(base);
-      setImagesLoading(true);
-      const imageResults = await Promise.all(
-        base.days.map(async (day) => {
-          const imageResponse = await fetch("/api/itinerary/image", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              destination: base.trip.destination,
-              day: day.day,
-              title: `${day.location}: ${day.title}`,
-            }),
-          });
-          const image = await imageResponse.json();
-          return { day: day.day, image: image.image as string };
-        }),
-      );
-      setMasterItinerary({
-        ...base,
-        days: base.days.map((day) => ({
-          ...day,
-          image: imageResults.find((item) => item.day === day.day)?.image,
-        })),
-      });
+      setMasterItinerary(result as Itinerary);
     } catch (generationError) {
       setError(
         generationError instanceof Error
@@ -239,7 +426,6 @@ export default function HomePage() {
       );
     } finally {
       setLoading(false);
-      setImagesLoading(false);
     }
   }
 
@@ -281,183 +467,19 @@ export default function HomePage() {
   }
 
   async function downloadPdf() {
-    if (
-      !masterItinerary ||
-      imagesLoading ||
-      masterItinerary.days.some((day) => !day.image)
-    ) {
-      setError(
-        "Please wait for all destination images to finish before downloading.",
-      );
+    if (!masterItinerary) {
+      setError("Create an itinerary before downloading the PDF.");
       return;
     }
     try {
-      const { jsPDF } = await import("jspdf");
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-      });
-      const images = await Promise.all(
-        masterItinerary.days.map((day) =>
-          day.image ? imageAsPng(day.image) : Promise.resolve(""),
-        ),
-      );
-      const footer = () => {
-        pdf.setTextColor(100, 116, 139);
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(7);
-        pdf.text(
-          "THE HIMALAYAN TRAVELS · Travel • Explore • Experience · thehimalayantravels.com",
-          18,
-          290,
-        );
-        pdf.text(`Page ${pdf.getNumberOfPages()}`, 178, 290);
-      };
-      const section = (heading: string, value: string, y: number) => {
-        pdf.setTextColor(200, 146, 42);
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(8);
-        pdf.text(heading.toUpperCase(), 18, y);
-        pdf.setTextColor(71, 85, 105);
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(9);
-        pdf.text(pdf.splitTextToSize(value || "Not specified", 174), 18, y + 6);
-      };
-      const fillPage = (color: [number, number, number]) => {
-        pdf.setFillColor(...color);
-        pdf.rect(0, 0, 210, 297, "F");
-      };
-      fillPage([247, 244, 238]);
-      pdf.setTextColor(26, 58, 92);
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(12);
-      pdf.text("THE HIMALAYAN TRAVELS", 18, 22);
-      pdf.setTextColor(200, 146, 42);
-      pdf.setFontSize(10);
-      pdf.text(categoryTitle.toUpperCase(), 18, 31);
-      if (images[0]) pdf.addImage(images[0], "PNG", 18, 44, 174, 92);
-      pdf.setTextColor(26, 58, 92);
-      pdf.setFontSize(25);
-      pdf.text(masterItinerary.title, 18, 158, { maxWidth: 174 });
-      pdf.setFontSize(11);
-      pdf.setFont("helvetica", "normal");
-      pdf.text("Your Journey Starts Here", 18, 169);
-      pdf.setFontSize(10);
-      pdf.text(
-        `${masterItinerary.trip.duration} · ${masterItinerary.route.join(" → ")}`,
-        18,
-        181,
-      );
-      pdf.text(
-        `${masterItinerary.trip.adults} adults · ${masterItinerary.trip.travellerType}`,
-        18,
-        190,
-      );
-      footer();
-      pdf.addPage();
-      fillPage([255, 255, 255]);
-      pdf.setTextColor(26, 58, 92);
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(18);
-      pdf.text("Trip at a glance", 18, 24);
-      const infoCard = (label: string, value: string, x: number, y: number, width: number) => {
-        pdf.setFillColor(247, 244, 238);
-        pdf.roundedRect(x, y, width, 28, 3, 3, "F");
-        pdf.setTextColor(200, 146, 42);
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(7);
-        pdf.text(label.toUpperCase(), x + 6, y + 8);
-        pdf.setTextColor(26, 58, 92);
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(9);
-        pdf.text(pdf.splitTextToSize(value, width - 12), x + 6, y + 16);
-      };
-      infoCard("Duration", masterItinerary.trip.duration, 18, 38, 82);
-      infoCard("Travellers", `${masterItinerary.trip.adults} adults · ${masterItinerary.trip.travellerType}`, 110, 38, 82);
-      infoCard("Trip type", masterItinerary.trip.tripType, 18, 72, 82);
-      infoCard("Transport", masterItinerary.trip.transport || "Practical route option", 110, 72, 82);
-      pdf.setTextColor(200, 146, 42); pdf.setFont("helvetica", "bold"); pdf.setFontSize(8); pdf.text("ROUTE", 18, 116);
-      pdf.setTextColor(26, 58, 92); pdf.setFont("helvetica", "bold"); pdf.setFontSize(12); pdf.text(masterItinerary.route.join("  →  "), 18, 126, { maxWidth: 174 });
-      pdf.setDrawColor(200, 146, 42); pdf.line(18, 132, 192, 132);
-      section("Journey", masterItinerary.summary, 149);
-      section("Daily route", masterItinerary.days.map((day) => `Day ${day.day}: ${day.location} — ${day.title}`).join("\n"), 193);
-      footer();
-      for (const [index, day] of masterItinerary.days.entries()) {
-        pdf.addPage();
-        fillPage([255, 255, 255]);
-        pdf.setTextColor(200, 146, 42);
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(9);
-        pdf.text(
-          `DAY ${String(day.day).padStart(2, "0")} · ${day.location}`.toUpperCase(),
-          18,
-          20,
-        );
-        pdf.setTextColor(26, 58, 92);
-        pdf.setFontSize(18);
-        pdf.text(day.title, 18, 31, { maxWidth: 174 });
-        if (images[index]) pdf.addImage(images[index], "PNG", 18, 40, 174, 60);
-        section("Morning", day.morning.join(" • "), 114);
-        section("Afternoon", day.afternoon.join(" • "), 146);
-        section("Evening", day.evening.join(" • "), 178);
-        section("Night", day.night.join(" • "), 210);
-        section(
-          "Travel",
-          `${day.distance} · ${day.travelTime} · ${day.transport} · Depart ${day.departure}`,
-          242,
-        );
-        section("Meals", day.meals.join(" · "), 270);
-        footer();
-      }
-      pdf.addPage();
-      fillPage([247, 244, 238]);
-      pdf.setTextColor(26, 58, 92);
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(18);
-      pdf.text(
-        category === 2
-          ? "Estimated trip cost"
-          : category === 3
-            ? "Suggested hotel options"
-            : "Travel notes",
-        18,
-        24,
-      );
-      if (category === 2)
-        section(
-          "Cost estimate",
-          Object.entries(category2!.cost)
-            .map(([key, value]) => `${key}: ${value}`)
-            .join("\n"),
-          42,
-        );
-      if (category === 3)
-        section(
-          "Suggested hotel options",
-          category3!.hotels
-            .map(
-              (hotel) =>
-                `${hotel.city} · ${hotel.nights} nights\n${hotel.options.join("\n")}`,
-            )
-            .join("\n\n"),
-          42,
-        );
-      section(
-        "Inclusions",
-        masterItinerary.inclusions.join(" · "),
-        category === 1 ? 42 : 190,
-      );
-      section(
-        "Exclusions",
-        masterItinerary.exclusions.join(" · "),
-        category === 1 ? 100 : 234,
-      );
-      footer();
+      const { createItineraryPdf } = await import("@/lib/itinerary-pdf");
+      const pdf = createItineraryPdf(masterItinerary, category);
       pdf.save(
         `${masterItinerary.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-category-${category}.pdf`,
       );
-    } catch {
+      setError("");
+    } catch (pdfError) {
+      console.error("Itinerary PDF generation failed", pdfError);
       setError("The PDF could not be downloaded. Please try again.");
     }
   }
@@ -479,6 +501,10 @@ export default function HomePage() {
         </div>
         <PlannerForm
           form={form}
+          tripPrompt={tripPrompt}
+          setTripPrompt={setTripPrompt}
+          suggestedDays={String(suggestedDays)}
+          promptDays={promptDays}
           loading={loading}
           change={change}
           onSubmit={generate}
@@ -497,7 +523,7 @@ export default function HomePage() {
               <div>
                 <p className="print-brand">THE HIMALAYAN TRAVELS</p>
                 <p className="print-contact">
-                  GST: {gstNumber} · {contactNumber}
+                  GST: {companyProfile.gst} · {companyProfile.phone}
                 </p>
               </div>
               <p className="print-document-label">{categoryTitle}</p>
@@ -539,11 +565,9 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={downloadPdf}
-                  disabled={imagesLoading}
                   className="btn-gold justify-center disabled:opacity-70"
                 >
-                  <Download size={16} />{" "}
-                  {imagesLoading ? "Creating images..." : "Download PDF"}
+                  <Download size={16} /> Download PDF
                 </button>
               </div>
             </div>
@@ -648,19 +672,9 @@ export default function HomePage() {
                     key={day.day}
                     className="itinerary-day overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
                   >
-                    <div className="grid lg:grid-cols-[.8fr_1.2fr]">
-                      <div className="min-h-64 bg-slate-200">
-                        {day.image && (
-                          <img
-                            src={day.image}
-                            alt={`${day.location} travel`}
-                            className="h-full min-h-64 w-full object-cover"
-                          />
-                        )}
-                      </div>
-                      <div className="p-5 sm:p-7">
+                    <div className="p-5 sm:p-7">
                         <p className="section-label">
-                          Day {day.day} · {day.location}
+                          Day {String(day.day).padStart(2, "0")} · {day.date} · {day.location}
                         </p>
                         <h3 className="text-2xl font-semibold text-[#1a3a5c]">
                           {day.title}
@@ -696,7 +710,6 @@ export default function HomePage() {
                             {bullets(day.hotel.options)}
                           </div>
                         )}
-                      </div>
                     </div>
                   </article>
                 ))}
@@ -743,11 +756,19 @@ export default function HomePage() {
 
 function PlannerForm({
   form,
+  tripPrompt,
+  setTripPrompt,
+  suggestedDays,
+  promptDays,
   loading,
   change,
   onSubmit,
 }: {
   form: FormState;
+  tripPrompt: string;
+  setTripPrompt: (value: string) => void;
+  suggestedDays: string;
+  promptDays: string;
   loading: boolean;
   change: (field: keyof FormState, value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -757,6 +778,15 @@ function PlannerForm({
       onSubmit={onSubmit}
       className="mx-auto mt-10 rounded-2xl border border-slate-200 bg-white p-5 shadow-xl sm:p-7"
     >
+      <div className="mb-4">
+        <Field
+          label="Trip prompt (AI smart input)"
+          icon={<Sparkles size={17} />}
+          value={tripPrompt}
+          onChange={setTripPrompt}
+          placeholder='Examples: "Nainital itinerary", "Delhi se Goa 7 days for couple", "Nainital aur Mussoorie 5 days"'
+        />
+      </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Field
           label="Starting city"
@@ -764,7 +794,6 @@ function PlannerForm({
           value={form.origin}
           onChange={(value) => change("origin", value)}
           placeholder="Delhi"
-          required
         />
         <Field
           label="Destination"
@@ -772,7 +801,6 @@ function PlannerForm({
           value={form.destination}
           onChange={(value) => change("destination", value)}
           placeholder="Goa, Manali, Kashmir"
-          required
         />
         <Field
           label="Start date"
@@ -792,10 +820,13 @@ function PlannerForm({
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Select
           label="Days"
-          value={form.days}
+          value={form.days || promptDays || suggestedDays}
           onChange={(value) => change("days", value)}
           options={["3", "4", "5", "6", "7", "8", "10", "12", "15"]}
         />
+        <p className="-mt-2 text-xs text-slate-500 sm:col-span-2 lg:col-span-4">
+          AI Suggested: {suggestedDays} Days / {Math.max(0, Number(suggestedDays) - 1)} Nights
+        </p>
         <Select
           label="Adults"
           value={form.adults}
